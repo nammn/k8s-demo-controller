@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/piontec/k8s-demo-controller/pkg/handlers"
-	"github.com/piontec/k8s-demo-controller/pkg/utils"
+	"github.com/nammn/k8s-demo-controller/pkg/handlers"
+	"github.com/nammn/k8s-demo-controller/pkg/utils"
 
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,10 +45,14 @@ var serverStartTime time.Time
 
 // Event indicate the informerEvent
 type Event struct {
-	key          string
-	eventType    string
-	namespace    string
-	resourceType string
+	key            string
+	reason         string
+	message        string
+	firstTimestamp meta_v1.Time
+	lastTimestamp  meta_v1.Time
+	eventType      string
+	namespace      string
+	resourceType   string
 }
 
 // Controller object
@@ -71,18 +75,18 @@ func Start() {
 	informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
-				return kubeClient.CoreV1().Pods(meta_v1.NamespaceAll).List(options)
+				return kubeClient.CoreV1().Events(meta_v1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
-				return kubeClient.CoreV1().Pods(meta_v1.NamespaceAll).Watch(options)
+				return kubeClient.CoreV1().Events(meta_v1.NamespaceAll).Watch(options)
 			},
 		},
-		&api_v1.Pod{},
+		&api_v1.Event{},
 		0, //Skip resync
 		cache.Indexers{},
 	)
 
-	c := newResourceController(kubeClient, informer, "pod")
+	c := newResourceController(kubeClient, informer, "event")
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
@@ -202,15 +206,7 @@ func (c *Controller) processItem(newEvent Event) error {
 		return fmt.Errorf("Error fetching object with key %s from store: %v", newEvent.key, err)
 	}
 
-	// process events based on its type
-	var eventHandler handlers.Handler = new(handlers.Default)
-	switch newEvent.eventType {
-	case "create":
-		eventHandler.ObjectCreated(obj)
-	case "update":
-		eventHandler.ObjectUpdated(obj, newEvent)
-	case "delete":
-		eventHandler.ObjectDeleted(newEvent)
-	}
-	return nil
+	//TODO: dependent on chosen viper configuration relay somewhere else
+	var eventHandler handlers.Handler = new(handlers.Cloudant)
+	return eventHandler.Relay(obj)
 }

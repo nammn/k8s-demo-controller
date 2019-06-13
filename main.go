@@ -17,7 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"github.com/piontec/k8s-demo-controller/pkg/controller"
+	"github.com/nammn/k8s-demo-controller/pkg/controller"
 )
 
 const version = "0.1.0"
