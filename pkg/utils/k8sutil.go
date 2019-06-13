@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"github.com/nammn/k8s-demo-controller/pkg/controller"
-	"k8s.io/api/core/v1"
 	"os"
 
 	"github.com/Sirupsen/logrus"
@@ -44,8 +42,4 @@ func GetClientOutOfCluster() kubernetes.Interface {
 	clientset, err := kubernetes.NewForConfig(config)
 
 	return clientset
-}
-
-func convertEvent(event v1.Event) controller.Event {
-
 }

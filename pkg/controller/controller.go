@@ -18,6 +18,7 @@ package controller
 
 import (
 	"fmt"
+	types "github.com/nammn/k8s-demo-controller/pkg/common"
 	"os"
 	"os/signal"
 	"syscall"
@@ -41,27 +42,7 @@ import (
 
 const maxRetries = 5
 
-type BackendTypes string
-
-const (
-	Local    BackendTypes = "local"
-	Cloudant BackendTypes = "cloudant"
-	Aurora   BackendTypes = "aurora"
-)
-
 var serverStartTime time.Time
-
-// Event indicate the informerEvent
-type Event struct {
-	key            string
-	reason         string
-	message        string
-	firstTimestamp meta_v1.Time
-	lastTimestamp  meta_v1.Time
-	eventType      string
-	namespace      string
-	resourceType   string
-}
 
 // Controller object
 type Controller struct {
@@ -106,35 +87,48 @@ func Start() {
 	<-sigterm
 }
 
+func updateEvent(event *types.RelayEvent, obj interface{}, resourceType string) {
+	if resourceType == "event" {
+		event.FirstTimestamp = obj.(*api_v1.Event).FirstTimestamp
+		event.LastTimestamp = obj.(*api_v1.Event).LastTimestamp
+		event.Reason = obj.(*api_v1.Event).Reason
+		event.Message = obj.(*api_v1.Event).Message
+	}
+
+}
+
 func newResourceController(client kubernetes.Interface, informer cache.SharedIndexInformer, resourceType string) *Controller {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	var newEvent Event
+	var newEvent types.RelayEvent
 	var err error
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			newEvent.key, err = cache.MetaNamespaceKeyFunc(obj)
-			newEvent.eventType = "create"
-			newEvent.resourceType = resourceType
-			logrus.WithField("pkg", resourceType).Infof("Processing add to %v: %s", resourceType, newEvent.key)
+			newEvent.Key, err = cache.MetaNamespaceKeyFunc(obj)
+			newEvent.EventType = "create"
+			newEvent.ResourceType = resourceType
+			logrus.WithField("pkg", resourceType).Infof("Processing add to %v: %s", resourceType, newEvent.Key)
 			if err == nil {
+				updateEvent(&newEvent, obj, resourceType)
 				queue.Add(newEvent)
 			}
 		},
 		UpdateFunc: func(old, new interface{}) {
-			newEvent.key, err = cache.MetaNamespaceKeyFunc(old)
-			newEvent.eventType = "update"
-			newEvent.resourceType = resourceType
-			logrus.WithField("pkg", resourceType).Infof("Processing update to %v: %s", resourceType, newEvent.key)
+			newEvent.Key, err = cache.MetaNamespaceKeyFunc(old)
+			newEvent.EventType = "update"
+			newEvent.ResourceType = resourceType
+			logrus.WithField("pkg", resourceType).Infof("Processing update to %v: %s", resourceType, newEvent.Key)
 			if err == nil {
+				updateEvent(&newEvent, new, resourceType)
 				queue.Add(newEvent)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			newEvent.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			newEvent.eventType = "delete"
-			newEvent.resourceType = resourceType
-			logrus.WithField("pkg", resourceType).Infof("Processing delete to %v: %s", resourceType, newEvent.key)
+			newEvent.Key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			newEvent.EventType = "delete"
+			newEvent.ResourceType = resourceType
+			logrus.WithField("pkg", resourceType).Infof("Processing delete to %v: %s", resourceType, newEvent.Key)
 			if err == nil {
+				updateEvent(&newEvent, obj, resourceType)
 				queue.Add(newEvent)
 			}
 		},
@@ -191,16 +185,16 @@ func (c *Controller) processNextItem() bool {
 		return false
 	}
 	defer c.queue.Done(newEvent)
-	err := c.processItem(newEvent.(Event))
+	err := c.processItem(newEvent.(types.RelayEvent))
 	if err == nil {
 		// No error, reset the ratelimit counters
 		c.queue.Forget(newEvent)
 	} else if c.queue.NumRequeues(newEvent) < maxRetries {
-		c.logger.Errorf("Error processing %s (will retry): %v", newEvent.(Event).key, err)
+		c.logger.Errorf("Error processing %s (will retry): %v", newEvent.(types.RelayEvent).Key, err)
 		c.queue.AddRateLimited(newEvent)
 	} else {
 		// err != nil and too many retries
-		c.logger.Errorf("Error processing %s (giving up): %v", newEvent.(Event).key, err)
+		c.logger.Errorf("Error processing %s (giving up): %v", newEvent.(types.RelayEvent).Key, err)
 		c.queue.Forget(newEvent)
 		utilruntime.HandleError(err)
 	}
@@ -208,21 +202,25 @@ func (c *Controller) processNextItem() bool {
 	return true
 }
 
-// Processes the current item and relays it to a handler given the environment variable
-func (c *Controller) processItem(newEvent Event) error {
-	_, _, err := c.informer.GetIndexer().GetByKey(newEvent.key)
+/**
+Processes the current item and relays it to a handler given the environment variable.
+The handler is responsible to actually handle the payload by usually marshalling and sending it to a common place
+*/
+
+func (c *Controller) processItem(newEvent types.RelayEvent) error {
+	_, _, err := c.informer.GetIndexer().GetByKey(newEvent.Key)
 	if err != nil {
-		return fmt.Errorf("Error fetching object with key %s from store: %v", newEvent.key, err)
+		return fmt.Errorf("Error fetching object with key %s from store: %v", newEvent.Key, err)
 	}
 
 	handlerType := os.Getenv("BACKENDHANDLERTYPE")
 	var eventHandler handlers.Handler
-	switch BackendTypes(handlerType) {
-	case Aurora:
+	switch types.BackendTypes(handlerType) {
+	case types.Aurora:
 		eventHandler = new(handlers.Aurora)
-	case Local:
+	case types.Local:
 		eventHandler = new(handlers.Local)
-	case Cloudant:
+	case types.Cloudant:
 		eventHandler = new(handlers.Cloudant)
 	default:
 		eventHandler = new(handlers.Local)

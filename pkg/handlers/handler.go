@@ -18,8 +18,8 @@ package handlers
 
 import (
 	"github.com/Sirupsen/logrus"
-	"github.com/nammn/k8s-demo-controller/pkg/controller"
-	"k8s.io/api/core/v1"
+	types "github.com/nammn/k8s-demo-controller/pkg/common"
+	"k8s.io/apimachinery/pkg/util/json"
 )
 
 // Handler is implemented by any handler.
@@ -28,8 +28,9 @@ type Handler interface {
 	// Init initializes handler configuration
 	// loads from viper/key store and setup connection
 	Init() error
+	GetType() types.BackendTypes
 	// this is responsible for relaying the information to a specific backend
-	Relay(event controller.Event) error
+	Relay(event types.RelayEvent) error
 }
 
 // Map maps each event handler function to a name for easily lookup
@@ -46,7 +47,11 @@ func (d *Cloudant) Init() error {
 	return nil
 }
 
-func (d *Cloudant) Relay(event controller.Event) error {
+func (d *Cloudant) GetType() types.BackendTypes {
+	return types.Cloudant
+}
+
+func (d *Cloudant) Relay(event types.RelayEvent) error {
 	return nil
 }
 
@@ -57,14 +62,18 @@ func (a *Aurora) Init() error {
 	return nil
 }
 
-func (a *Aurora) Relay(event controller.Event) error {
+func (a *Aurora) GetType() types.BackendTypes {
+	return types.Aurora
+}
+
+func (a *Aurora) Relay(event types.RelayEvent) error {
 	return nil
 
 }
 
 /**
 The Local Handler is only responsible to take the current obj and formats it into proper JSON to dump this into the log.
-Mainly purpose is to show that the relay action is actually working for the Event case.
+Mainly purpose is to show that the relay action is actually working for the RelayEvent case.
 */
 type Local struct {
 }
@@ -73,8 +82,17 @@ func (a *Local) Init() error {
 	return nil
 }
 
-func (a *Local) Relay(event controller.Event) error {
-	logrus.WithField("pkg", v1.Event{}).Infof("Processing %+v", event)
+func (a *Local) GetType() types.BackendTypes {
+	return types.Local
+}
+
+func (a *Local) Relay(event types.RelayEvent) error {
+	b, err := json.Marshal(event)
+	if err != nil {
+		logrus.Errorf("Error trying to convert event to a json")
+		return err
+	}
+	logrus.WithField("pkg", types.RelayEvent{}).Infof("Relaying to: %s the following information: %s", a.GetType(), b)
 
 	return nil
 

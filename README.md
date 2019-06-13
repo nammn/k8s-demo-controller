@@ -16,8 +16,20 @@ Main goal is to expose the audit history of a cluster for analysis by another se
 ## What is missing?
 *  Kobra configuration to set which backend to actually plug with to 
 *  Concrete Backend integration
-*  Only on can run at a time 
+*  Only one Backend can run at a time 
+    * This should be done by using either multple env or multiple start variables with cobra
 *  The controller only handles `Events`
+*  Integration tests
+*  Unit tests
+    * Right now there is not a lot of logic to test 
+*  CI Integration (Which would probably Travis)
+    * To run integration tests 
+    * Integration Tests can be done by either deploying a controller per Helm to another cluster and force test cases
+    * To run Linting
+*   The below struct should/can contain it's own handled Timestamp
+*   No Audit Logs integration yet
+*   No ensuring whether specific information actually should be sent
+*   No RBAC or other kind of security configuration done
 ## Building
 You need `dep`. Get and install it here: [https://github.com/golang/dep](https://github.com/golang/dep). Then run,
 ```
@@ -46,6 +58,7 @@ type Event struct {
 }
 ``` 
 and each `Event` from K8 will be handled by a pluggable backend.
+Currently the Backend is decided by the Environment variable `BACKENDHANDLERTYPE`
 The usual case is that the `Event` struct will be marshalled into a JSON and send to the corresponding API.
 
 ### Running as standalone binary
