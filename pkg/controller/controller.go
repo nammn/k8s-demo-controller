@@ -41,6 +41,14 @@ import (
 
 const maxRetries = 5
 
+type BackendTypes string
+
+const (
+	Local    BackendTypes = "local"
+	Cloudant BackendTypes = "cloudant"
+	Aurora   BackendTypes = "aurora"
+)
+
 var serverStartTime time.Time
 
 // Event indicate the informerEvent
@@ -200,13 +208,25 @@ func (c *Controller) processNextItem() bool {
 	return true
 }
 
+// Processes the current item and relays it to a handler given the environment variable
 func (c *Controller) processItem(newEvent Event) error {
-	obj, _, err := c.informer.GetIndexer().GetByKey(newEvent.key)
+	_, _, err := c.informer.GetIndexer().GetByKey(newEvent.key)
 	if err != nil {
 		return fmt.Errorf("Error fetching object with key %s from store: %v", newEvent.key, err)
 	}
 
-	//TODO: dependent on chosen viper configuration relay somewhere else
-	var eventHandler handlers.Handler = new(handlers.Cloudant)
-	return eventHandler.Relay(obj)
+	handlerType := os.Getenv("BACKENDHANDLERTYPE")
+	var eventHandler handlers.Handler
+	switch BackendTypes(handlerType) {
+	case Aurora:
+		eventHandler = new(handlers.Aurora)
+	case Local:
+		eventHandler = new(handlers.Local)
+	case Cloudant:
+		eventHandler = new(handlers.Cloudant)
+	default:
+		eventHandler = new(handlers.Local)
+	}
+	//Now just takes the cloudant handler
+	return eventHandler.Relay(newEvent)
 }

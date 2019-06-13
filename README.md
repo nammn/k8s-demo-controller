@@ -13,6 +13,11 @@ This controller  observes the audit logs and event streams of Kubernetes,
 and relays them out to another service outside the cluster.
 Main goal is to expose the audit history of a cluster for analysis by another service.
 
+## What is missing?
+*  Kobra configuration to set which backend to actually plug with to 
+*  Concrete Backend integration
+*  Only on can run at a time 
+*  The controller only handles `Events`
 ## Building
 You need `dep`. Get and install it here: [https://github.com/golang/dep](https://github.com/golang/dep). Then run,
 ```
@@ -25,13 +30,23 @@ make
 ## Running
 Make sure your `kubectl` is working. 
 
+## Auditing Backend
+The current Events are saved in the following format
+```
+// Event indicate the informerEvent
+type Event struct {
+	key            string
+	reason         string
+	message        string
+	firstTimestamp meta_v1.Time
+	lastTimestamp  meta_v1.Time
+	eventType      string
+	namespace      string
+	resourceType   string
+}
+``` 
+and each `Event` from K8 will be handled by a pluggable backend.
+The usual case is that the `Event` struct will be marshalled into a JSON and send to the corresponding API.
+
 ### Running as standalone binary
 Just run `./audit-controller`. 
-
-### Running as pod in a cluster
-*  set `DOCKER_REPO` variable in [`Makefile`](Makefile) to point to a docker registry where you can store the image
-*  run `make build-image` to build locally a docker image with your controller
-*  run `make push-image` to push it to the registry
-*  edit [`demo-controller.yaml`](demo-controller.yaml) and change `image: YOUR_URL:TAG` to pint to your image registry and the version tag you want to deploy
-*  run `kubectl create -f demo-controller.yaml`
-

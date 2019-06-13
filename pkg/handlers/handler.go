@@ -16,48 +16,66 @@ limitations under the License.
 
 package handlers
 
+import (
+	"github.com/Sirupsen/logrus"
+	"github.com/nammn/k8s-demo-controller/pkg/controller"
+	"k8s.io/api/core/v1"
+)
+
 // Handler is implemented by any handler.
 // The Handle method is used to process event
 type Handler interface {
+	// Init initializes handler configuration
+	// loads from viper/key store and setup connection
 	Init() error
-	Relay(obj interface{}) error
+	// this is responsible for relaying the information to a specific backend
+	Relay(event controller.Event) error
 }
 
 // Map maps each event handler function to a name for easily lookup
 var Map = map[string]interface{}{
 	"cloudant": &Cloudant{},
 	"aurora":   &Aurora{},
+	"local":    &Local{},
 }
 
-// Cloudant handler implements Handler interface,
-// print each event with JSON format
 type Cloudant struct {
 }
 
-// Init initializes handler configuration
-// loads from viper/key store and setup connection
 func (d *Cloudant) Init() error {
 	return nil
 }
 
-//TODO: this is responsible for relaying the information
-func (d *Cloudant) Relay(obj interface{}) error {
+func (d *Cloudant) Relay(event controller.Event) error {
 	return nil
 }
 
-// Cloudant handler implements Handler interface,
-// print each event with JSON format
 type Aurora struct {
 }
 
-// Init initializes handler configuration
-// loads from viper/key store and setup connection
 func (a *Aurora) Init() error {
 	return nil
 }
 
-//TODO: this is responsible for relaying the information
-func (a *Aurora) Relay(obj interface{}) error {
+func (a *Aurora) Relay(event controller.Event) error {
+	return nil
+
+}
+
+/**
+The Local Handler is only responsible to take the current obj and formats it into proper JSON to dump this into the log.
+Mainly purpose is to show that the relay action is actually working for the Event case.
+*/
+type Local struct {
+}
+
+func (a *Local) Init() error {
+	return nil
+}
+
+func (a *Local) Relay(event controller.Event) error {
+	logrus.WithField("pkg", v1.Event{}).Infof("Processing %+v", event)
+
 	return nil
 
 }
