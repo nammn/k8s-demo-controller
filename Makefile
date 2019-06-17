@@ -1,6 +1,6 @@
 .PHONY: default build clean build-image push-image
 
-BINARY = demo-controller
+BINARY = audit-controller
 
 DOCKER_REPO = YOUR_URL
 
